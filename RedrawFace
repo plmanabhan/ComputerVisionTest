@@ -1,0 +1,40 @@
+import random
+import tensorflow as tf
+import numpy as np
+from PIL import Image
+from io import BytesIO
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+model = tf.keras.models.load_model('diffusion_model.h5')
+
+@app.route('/redraw_face', methods=['POST'])
+def redraw_face():
+    file = request.files['image']
+    
+    img = Image.open(BytesIO(file.read()))
+    
+    img = img.resize((256, 256))
+    
+    img_array = np.array(img)
+    
+    img_array = img_array / 255.0
+    
+    img_array = np.expand_dims(img_array, axis=0)
+    
+    noise = np.random.normal(size=img_array.shape)
+    redrawn_img_array = model.predict(img_array + noise)
+    
+    redrawn_img_array = np.squeeze(redrawn_img_array, axis=0)
+    
+    redrawn_img = Image.fromarray((redrawn_img_array * 255).astype(np.uint8))
+    
+    redrawn_img_bytes = BytesIO()
+    redrawn_img.save(redrawn_img_bytes, format='PNG')
+    redrawn_img_bytes.seek(0)
+    
+    return jsonify({'redrawn_image': redrawn_img_bytes.getvalue()})
+
+if __name__ == '__main__':
+    app.run()
